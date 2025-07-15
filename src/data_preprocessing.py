@@ -3,6 +3,7 @@ import re
 import glob
 import pandas as pd
 from pathlib import Path
+from typing import List, Optional
 
 def load_csv(path: Path, region_col: str, date_col: str = "date") -> pd.DataFrame:
     """
@@ -23,7 +24,7 @@ def combine_datasets(city: pd.DataFrame, prov: pd.DataFrame, raw_col: str = "NO2
     ], ignore_index=True)
     df = df.rename(columns={raw_col: "NO2_umol_m2"})
     # assume original units were mol/m²
-    df["NO2_umol_m2"] *= 1e6  
+    df["NO2_umol_m2"] *= 1e6
     return df
 
 def get_quarter_start(date: pd.Timestamp) -> pd.Timestamp:
@@ -57,7 +58,7 @@ def load_external_features(PARQUET_DIR, region_col="region") -> pd.DataFrame:
     final_df = pd.concat(dfs, ignore_index=True)
     return final_df.rename(columns={"gadm": region_col})
 
-from typing import List, Optional
+
 
 def merge_features(
     main_df: pd.DataFrame,
