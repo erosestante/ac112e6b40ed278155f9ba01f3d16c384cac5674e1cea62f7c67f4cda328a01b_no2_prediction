@@ -1,0 +1,19 @@
+# Virtual environments
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Logs and outputs
+*.log
+*.out
+*.txt
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+
+# VSCode and OS-specific
+.vscode/
+.DS_Store
