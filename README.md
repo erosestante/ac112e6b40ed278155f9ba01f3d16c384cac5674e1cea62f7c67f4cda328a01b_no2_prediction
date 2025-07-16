@@ -86,6 +86,7 @@ python src/run_pipeline.py
 └── README.md                # This documentation
 ```
 I separated raw datasets, feature-engineered parquet files, model artifacts, and evaluation outputs into distinct folder to enhance clarity, reproducibility, and ease of navigation throughout the ML lifecycle.
+
 ---
 ## Pre-commit Configuration
 ```yaml
