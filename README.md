@@ -1,9 +1,9 @@
 # NO₂ Prediction with Urban Amenities and Satellite Data
 
-## 🧠 Project Overview
+## Project Overview
 This project focuses on the Philippines, aiming to develop amenity-aware, interpretable machine-learning models that integrate OpenStreetMap amenity counts and satellite-derived air quality observations to forecast regional NO₂ concentrations, across all Philippine provinces and highly urbanized cities.
 
-By fusing spatial amenity information with time-series air quality data, we will generate robust, period-specific forecasts and apply SHAP (SHapley Additive exPlanations) to decompose model outputs and track how the importance of amenity features shifts across three distinct phases: pre-pandemic, pandemic (lockdown), and post-pandemic (reopening).
+By fusing spatial amenity information with time-series air quality data, the project will generate robust, period-specific forecasts and apply SHAP (SHapley Additive exPlanations) to decompose model outputs and track how the importance of amenity features shifts across three distinct phases: pre-pandemic, pandemic (lockdown), and post-pandemic (reopening).
 
 Our deliverables include:
 
@@ -14,33 +14,33 @@ Our deliverables include:
 This work will equip policymakers and stakeholders with actionable, hyper-local air quality forecasts and transparent insights into shifting pollution drivers, enabling targeted interventions across the Philippines.
 
 ---
-## 📥 How to Get the Data
+## How to Get the Data
 
 ### 1. Satellite NO₂ Data (Sentinel‑5P + GEE)
-- **Source:** COPERNICUS/S5P/OFFL/L3_NO2 via Google Earth Engine
-- **Temporal Coverage:** Jan 2018 – May 2025 (monthly composites)
-- **Spatial Aggregation:** Reduced by GADM Level‑2 boundaries for 37 HUCs and 82 provinces
-- **Output:** CSV files in `data/raw/`:
+- Source: COPERNICUS/S5P/OFFL/L3_NO2 via Google Earth Engine
+- Temporal Coverage: Jan 2018 – May 2025 (monthly composites)
+- Spatial Aggregation: Reduced by GADM Level‑2 boundaries for 37 HUCs and 82 provinces
+- Output: CSV files in `data/raw/`:
   - `PHL_HUCs_Monthly_NO2_2018_2025.csv`
   - `PHL_Provinces_Monthly_NO2_2018_2025.csv`
 
 ### 2. Amenity Counts Data (OpenStreetMap)
-- **Snapshots:** Quarterly (Jan/Apr/Jul/Oct) from 2018 Q1 to 2025 Q1
-- **Tags Extracted:** `building`, `amenity`, `leisure`, `public_transport`, `office`, `shop`, `tourism`
-- **Processing Pipeline:**
-  1. **Geocoding**: PSGC reference → OSMnx geocode → province GeoJSON → cached in S3.
-  2. **Feature Extraction**: Overpass API via OSMnx → raw GeoJSON per date/region/province.
-  3. **Spark Transformation**:
-     - **`process_province()`** takes a GeoDataFrame and a mapping dict to:
+- Snapshots: Quarterly (Jan/Apr/Jul/Oct) from 2018 Q1 to 2025 Q1
+- Tags Extracted: `building`, `amenity`, `leisure`, `public_transport`, `office`, `shop`, `tourism`
+- Processing Pipeline:
+  1. Geocoding: PSGC reference → OSMnx geocode → province GeoJSON → cached in S3.
+  2. Feature Extraction: Overpass API via OSMnx → raw GeoJSON per date/region/province.
+  3. Spark Transformation:
+     - `process_province()` takes a GeoDataFrame and a mapping dict to:
        - Select relevant columns, explode multi‐valued tags
-       - Map raw OSM values (case‐insensitive) into ~50 clean categories (unknown → `uncat__OTHER`)
+       - Map raw OSM values (case‐insensitive) into ~50 clean categories
        - Pivot to wide format (one column per category count)
        - Add `gadm` (province), `date` (quarter) metadata
      - Writes one Parquet file per quarter: `data/raw/Archive/features_quarter=YYYY-MM-DD/features.parquet`
 
 ---
-## ⚙️ Setup Instructions
-We manage environments with [UV](https://docs.astral.sh/uv/):
+##  Setup Instructions
+The environment was managed with [UV](https://docs.astral.sh/uv/):
 ```bash
 # 1. Create & activate
 uv venv .venv
@@ -52,22 +52,22 @@ uv pip compile pyproject.toml     # generates uv.lock
 *Optional:* snapshot with `uv pip freeze > requirements.txt`.
 
 ---
-## 🚀 Running the Pipeline
+## Running the Pipeline
 ```bash
 python src/run_pipeline.py
 ```
-- **Outputs:**
+- Outputs:
   - Models in `models/`
   - Metrics & SHAP plots in `reports/pre-pandemic`, `reports/during-pandemic`, `reports/post-pandemic`
 
 ---
-## 📊 Running Visualizations
+## Running Visualizations
 `evaluation.py` generates:
 - SHAP summary plots
 - Feature‐importance bar charts
 
 ---
-## 🗂 Folder Structure
+## Folder Structure
 ```text
 .
 ├── data/
@@ -85,9 +85,9 @@ python src/run_pipeline.py
 ├── requirements.txt         # Optional pip snapshot
 └── README.md                # This documentation
 ```
-
+I separated raw datasets, feature-engineered parquet files, model artifacts, and evaluation outputs into distinct folder to enhance clarity, reproducibility, and ease of navigation throughout the ML lifecycle.
 ---
-## 🔧 Pre-commit Configuration
+## Pre-commit Configuration
 ```yaml
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -107,9 +107,16 @@ pre-commit install
 ```
 All code passes linting and formatting checks.
 
+Hook Justifications:
+- ruff: Ensures consistent code formatting and linting across the project, catching style issues and potential bugs early, which reduces merge conflicts and improves readability.
+
+- end-of-file-fixer: Automatically adds a newline at the end of files, preventing diff noise and adhering to POSIX standards.
+
+- trailing-whitespace: Removes unnecessary trailing spaces, cleaning up diffs and maintaining a professional codebase.
+
 ---
-## 💡 Reflection
-This is my first time creating a GitHub repository with a fully functioning ML Ops pipeline, so setting up the UV environment and modularizing the code (data preprocessing, feature engineering, model training, evaluation) was a significant challenge. I learned the importance of validating each module independently—ensuring data preprocessing works, then feature engineering, and finally model training—before running the full pipeline. Additionally, I encountered compatibility issues when running the pipeline in a OneDrive-synced directory and resolved them by moving the project to a local, unsynced Documents folder.
+## Reflection
+This is my first time creating a GitHub repository with a fully functioning ML Ops pipeline, so setting up the UV environment and modularizing the code (data preprocessing, feature engineering, model training, evaluation) was a significant challenge. I learned the importance of validating each module independently to ensure data preprocessing works, then feature engineering, and finally model training before running the full pipeline. Additionally, I encountered compatibility issues when running the pipeline in a OneDrive-synced directory and resolved them by moving the project to a local, unsynced Documents folder.
 
 ---
 *This README satisfies course requirements for a production-driven ML project.*
