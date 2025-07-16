@@ -83,11 +83,20 @@ def main():
 
     # Summary
     print("\n✅ All periods processed. Summary:")
+
     summary = {
-        lbl: {"naive_RMSE": v["naive"].get("RMSE"), "xgb_RMSE": v["xgb"]["RMSE"]}
+        lbl: {
+            "naive_MAE": v["naive"].get("MAE"),
+            "naive_RMSE": v["naive"].get("RMSE"),
+            "naive_SMAPE (%)": v["naive"].get("SMAPE"),
+            "xgb_MAE": v["xgb"]["MAE"],
+            "xgb_RMSE": v["xgb"]["RMSE"],
+            "xgb_SMAPE (%)": v["xgb"]["SMAPE"],
+        }
         for lbl, v in results.items()
     }
-    summary_df = pd.DataFrame(summary).T
+
+    summary_df = pd.DataFrame(summary).T.round(3)  # round to 3 decimal places
     print(summary_df.to_string())
 
     print("\n🎉 Pipeline complete!")

@@ -15,7 +15,7 @@ def evaluate_regression(
         np.abs(y_true - y_pred)
         / ((np.abs(y_true) + np.abs(y_pred)) / 2 + 1e-3)
     )
-    return {"MAE": mae, "RMSE": rmse, "SMAPE": smape}
+    return {"MAE": mae, "RMSE": rmse, "SMAPE": smape * 100}  # SMAPE as percentage
 
 def save_metrics(
     metrics: dict[str, float],
