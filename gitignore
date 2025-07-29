@@ -17,3 +17,6 @@ __pycache__/
 # VSCode and OS-specific
 .vscode/
 .DS_Store
+
+# Docker-related files
+/deploy/airflow/logs/

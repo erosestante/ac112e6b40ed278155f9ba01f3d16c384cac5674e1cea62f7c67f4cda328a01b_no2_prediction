@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.ipynb
+.ipynb_checkpoints/
+data/raw/
+models/
+deploy/      # avoids recursive copies

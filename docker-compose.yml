@@ -1,0 +1,62 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_db:/var/lib/postgresql/data
+
+  airflow-webserver:
+    image: apache/airflow:2.9.3
+
+    # Install Docker provider then launch the webserver
+    entrypoint: >
+      /bin/bash -c "
+        pip install apache-airflow-providers-docker &&
+        exec /entrypoint webserver
+      "
+
+    depends_on:
+      - postgres
+    ports:
+      - "8080:8080"
+    environment:
+      # Tell Airflow where plugins live
+      AIRFLOW__CORE__PLUGINS_FOLDER: /opt/airflow/plugins
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+    volumes:
+      - ./deploy/airflow/dags:/opt/airflow/dags
+      - ./deploy/airflow/logs:/opt/airflow/logs
+      - .:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  airflow-scheduler:
+    image: apache/airflow:2.9.3
+
+    # Install Docker provider then launch the scheduler
+    entrypoint: >
+      /bin/bash -c "
+        pip install apache-airflow-providers-docker &&
+        exec /entrypoint scheduler
+      "
+
+    depends_on:
+      - postgres
+    environment:
+      AIRFLOW__CORE__PLUGINS_FOLDER: /opt/airflow/plugins
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    volumes:
+      - ./deploy/airflow/dags:/opt/airflow/dags
+      - ./deploy/airflow/logs:/opt/airflow/logs
+      - .:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  postgres_db:
