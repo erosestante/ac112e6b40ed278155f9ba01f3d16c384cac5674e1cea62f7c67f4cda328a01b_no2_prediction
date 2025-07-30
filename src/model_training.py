@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from sklearn.base import RegressorMixin
 from typing import Tuple, List
 
-from evaluation import evaluate_regression
+from src.evaluation import evaluate_regression
 from typing import Optional, Dict
 
 

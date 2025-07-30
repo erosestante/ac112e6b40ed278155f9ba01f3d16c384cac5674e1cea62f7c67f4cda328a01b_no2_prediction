@@ -6,8 +6,8 @@ WORKDIR /app
 
 # 3. Install system tools (gcc) and UV (your Python env manager)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc && \
-    pip install uv && \
+    apt-get install -y --no-install-recommends gcc=4:10.2.1-1 && \
+    pip install --no-cache-dir uv==0.1.37 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # 4. Copy dependency specs (pyproject.toml & lockfile)

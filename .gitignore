@@ -68,6 +68,10 @@ wandb/
 # poetry.lock
 # Pipfile.lock
 
+# Ignore generated data and logs
+data/processed/*.parquet
+deploy/airflow/logs/**/*.log
+
 # ─────────────────────────────
 # Allow explicit project files
 # ─────────────────────────────
