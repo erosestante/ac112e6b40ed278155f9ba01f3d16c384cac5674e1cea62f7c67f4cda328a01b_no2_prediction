@@ -1,112 +1,255 @@
 # NO₂ Prediction with Urban Amenities and Satellite Data
 
-## Project Overview
-This project focuses on the Philippines, aiming to develop amenity-aware, interpretable machine-learning models that integrate OpenStreetMap amenity counts and satellite-derived air quality observations to forecast regional NO₂ concentrations, across all Philippine provinces and highly urbanized cities.
+## 1. Project Overview
+Building on our Homework 1 ML pipeline for forecasting monthly NO₂ concentrations across Philippine provinces, this version adds:
 
-By fusing spatial amenity information with time-series air quality data, the project will generate robust, period-specific forecasts and apply SHAP (SHapley Additive exPlanations) to decompose model outputs and track how the importance of amenity features shifts across three distinct phases: pre-pandemic, pandemic (lockdown), and post-pandemic (reopening).
+- `Docker containerization` for reproducible, immutable environments. We start from a Python 3.12-slim base, install locked dependencies via UV, and bundle our ML code so anyone can clone and run without “it works on my machine” issues.
 
-Our deliverables include:
+- `Apache Airflow orchestration` (official `apache/airflow:3.0.3` image) to automate and monitor each pipeline step—preprocessing, feature engineering, time-based splits, per-period model training, and evaluation—with retry policies, clear task dependencies, and a web UI for visibility.
 
-- Predictive Air Quality Models: Time-aware regression frameworks capable of capturing non-linear relationships between amenities and pollutant levels.
+## 2. Setup Instructions
 
-- Interpretability Reports: SHAP-driven analyses revealing evolving drivers of air pollution over time.
+### Prerequisites
 
-This work will equip policymakers and stakeholders with actionable, hyper-local air quality forecasts and transparent insights into shifting pollution drivers, enabling targeted interventions across the Philippines.
+1. **Install Docker & Docker Compose**
+   - **Docker Desktop** for macOS/Windows: https://www.docker.com/products/docker-desktop
+   - **Docker Engine & Compose** for Linux via your package manager
+2. **Verify versions**
+   ```bash
+   docker --version          # e.g. Docker version 24.x
+   docker compose version    # e.g. Docker Compose version v2.x
+3. **Ensure sufficient resources**
+  - ≥2 CPUs, ≥4 GB RAM, ≥10 GB disk
 
----
-## How to Get the Data
+4. **Clone the Repository**
+    ```bash
+    git clone git@github.com:erosestante/ac112e6b40ed278155f9ba01f3d16c384cac5674e1cea62f7c67f4cda328a01b_no2_prediction.
+    cd ac112e6b40ed278155f9ba01f3d16c384cac5674e1cea62f7c67f4cda328a01b_no2_prediction
+    git checkout hw2-docker-airflow
 
-### 1. Satellite NO₂ Data (Sentinel‑5P + GEE)
-- Source: COPERNICUS/S5P/OFFL/L3_NO2 via Google Earth Engine
-- Temporal Coverage: Jan 2018 – May 2025 (monthly composites)
-- Spatial Aggregation: Reduced by GADM Level‑2 boundaries for 37 HUCs and 82 provinces
-- Output: CSV files in `data/raw/`:
-  - `PHL_HUCs_Monthly_NO2_2018_2025.csv`
-  - `PHL_Provinces_Monthly_NO2_2018_2025.csv`
-
-### 2. Amenity Counts Data (OpenStreetMap)
-- Snapshots: Quarterly (Jan/Apr/Jul/Oct) from 2018 Q1 to 2025 Q1
-- Tags Extracted: `building`, `amenity`, `leisure`, `public_transport`, `office`, `shop`, `tourism`
-- Processing Pipeline:
-  1. Geocoding: PSGC reference → OSMnx geocode → province GeoJSON → cached in S3.
-  2. Feature Extraction: Overpass API via OSMnx → raw GeoJSON per date/region/province.
-  3. Spark Transformation:
-     - `process_province()` takes a GeoDataFrame and a mapping dict to:
-       - Select relevant columns, explode multi‐valued tags
-       - Map raw OSM values (case‐insensitive) into ~50 clean categories
-       - Pivot to wide format (one column per category count)
-       - Add `gadm` (province), `date` (quarter) metadata
-     - Writes one Parquet file per quarter: `data/raw/Archive/features_quarter=YYYY-MM-DD/features.parquet`
-
----
-##  Setup Instructions
-The environment was managed with [UV](https://docs.astral.sh/uv/):
-```bash
-# 1. Create & activate
-uv venv .venv
-source .venv/bin/activate        # (.venv/Scripts/activate on Windows)
-# 2. Install & lock
-uv pip install -r pyproject.toml
-uv pip compile pyproject.toml     # generates uv.lock
-```
-*Optional:* snapshot with `uv pip freeze > requirements.txt`.
-
----
-## Running the Pipeline
-```bash
-python src/run_pipeline.py
-```
-- Outputs:
-  - Models in `models/`
-  - Metrics & SHAP plots in `reports/pre-pandemic`, `reports/during-pandemic`, `reports/post-pandemic`
-
----
-## Running Visualizations
-`evaluation.py` generates:
-- SHAP summary plots
-- Feature‐importance bar charts
-
----
-## Folder Structure
+### Folder Structure
 ```text
 .
 ├── data/
-│   └── raw/
+│   ├── models/                        # Intermediate models (optional, e.g., cross-validation outputs)
+│   ├── processed/                     # Feature-engineered datasets (e.g., parquet files)
+│   └── raw/                           # Raw NO₂ data (CSV)
 │       ├── PHL_HUCs_Monthly_NO2_2018_2025.csv
 │       ├── PHL_Provinces_Monthly_NO2_2018_2025.csv
 │       └── Archive/
-│           └── features_quarter=YYYY-MM-DD/  # Contains `_SUCCESS`, `_SUCCESS.crc`, and `part-*.snappy.parquet` files
-├── models/                  # Trained XGBoost .pkl
-├── reports/                 # Period-specific metrics & plots
-├── src/                     # ML scripts: preprocessing → engineering → training → evaluation → orchestrator
-├── .pre-commit-config.yaml  # Pre-commit hooks
-├── pyproject.toml           # Project metadata & dependencies
-├── uv.lock                  # Locked dependencies
-├── requirements.txt         # Optional pip snapshot
-└── README.md                # This documentation
+│           └── features_quarter=YYYY-MM-DD/
+│               ├── _SUCCESS
+│               ├── _SUCCESS.crc
+│               └── part-*.snappy.parquet
+│
+├── models/                            # Final trained XGBoost model artifacts (.pkl)
+│
+├── reports/                           # Pipeline-generated evaluation reports and plots
+│
+├── src/                               # ML pipeline scripts
+│   ├── data_preprocessing.py
+│   ├── evaluation.py
+│   ├── feature_engineering.py
+│   ├── model_training.py
+│   └── run_pipeline.py
+│
+├── deploy/                            # Environment-specific configuration and orchestration
+│   ├── airflow/                       # Airflow DAGs and settings
+│   │   ├── config/                    # Airflow configs (e.g., connections, variables)
+│   │   ├── dags/                      # DAG definitions
+│   │   ├── logs/                      # Execution logs
+│   │   └── plugins/                   # Custom Airflow plugins
+│   └── docker/                        # Docker-related files
+│       ├── Dockerfile                 # For containerizing the ML pipeline
+│       ├── airflow.Dockerfile         # For running Airflow inside a container
+│       └── .dockerignore              # Exclude unnecessary files from build context
+│
+├── .env                               # Local environment variables
+├── .gitignore
+├── .pre-commit-config.yaml            # Linting & formatting rules via pre-commit
+├── .yamllint.yml                      # YAML linting config
+├── docker-compose.yml                 # Multi-container orchestration (Airflow + ML pipeline)
+├── pyproject.toml                     # Python dependencies (preferred over requirements.txt)
+├── uv.lock                            # Locked package versions (used by `uv`)
+├── requirements.txt                   # Optional pip-compatible dependency list
+└── README.md                          # Project overview and usage guide
+
 ```
-I separated raw datasets, feature-engineered parquet files, model artifacts, and evaluation outputs into distinct folder to enhance clarity, reproducibility, and ease of navigation throughout the ML lifecycle.
+I separated `airflow` and `docker` under `deploy` because they serve different purposes—`airflow` handles orchestration and scheduling, while `docker` manages containerization. This separation keeps the project modular, maintainable, and easier to scale.
+- `airflow/` handles DAGs, configs, and scheduling logic.
+- `docker/` contains Dockerfiles for building the ML pipeline and orchestration environments.
+
+##  3. Containerization of the ML Pipeline with Docker
+1. Docker Set-up
+
+The ML pipeline is containerized using a lightweight `python:3.12-slim` base image and `uv` for fast, reproducible dependency management. The Dockerfile is located at: `/deploy/docker/Dockerfile`. The image is optimized by removing unnecessary layers and tools, ensuring faster builds and smaller image size—ideal for CI/CD workflows.
+
+2. Build the ML Docker Image
+  To build the ML Docker Image, run this from the root of your project (replace <hashed_value> with your actual project hash or ID):
+  ```bash
+    docker build -f deploy/docker/Dockerfile -t <hashed_value>-ml-pipeline .
+  ```
+
+3. Run the pipeline
+  Mount the local folders for data, models, and reports when running the container:
+  ```bash
+  docker run --rm \
+  -v "$(pwd)/data:/app/data" \
+  -v "$(pwd)/models:/app/models" \
+  -v "$(pwd)/reports:/app/reports" \
+  <hashed_value>-ml-pipeline
+  ```
+
+  This will execute the default command specified in the Dockerfile.
+  ```bash
+  python src/run_pipeline.py
+  ```
+
+## 4. Orchestratation with Airflow (DockerCompose)
+
+This project runs Airflow using Docker Compose and a custom image built from `deploy/docker/airflow.Dockerfile`.
+Compose wires up the webserver, scheduler, API server, Postgres, and Redis, and mounts your project folders for reproducible runs.
+
+### `.env` (required)
+Create a `.env` at the project root so Compose picks up consistent paths, image name, and user mapping:
+```dotenv
+AIRFLOW_PROJ_DIR=./deploy/airflow
+AIRFLOW_UID=501                 # set to your host UID to avoid permission issues
+AIRFLOW_IMAGE_NAME=custom-airflow:latest
+```
+- `AIRFLOW_PROJ_DIR` maps local deploy/airflow/{dags,logs,plugins,config} to /opt/airflow/... in containers.
+- `AIRFLOW_UID` should match your local user (id -u on Linux).
+- `AIRFLOW_IMAGE_NAME` is the tag used after building from deploy/docker/airflow.Dockerfile.
+
+### Volumes (from docker-compose.yml)
+- ./deploy/airflow/dags → /opt/airflow/dags
+- ./deploy/airflow/plugins → /opt/airflow/plugins
+- ./deploy/airflow/logs → /opt/airflow/logs
+- ./deploy/airflow/config → /opt/airflow/config
+- ./data → /opt/airflow/data (raw, processed, models, reports)
+- ./reports → /reports, ./models → /models (optional host access)
+
+### Bring Up the Stack
+From the project root, run the following in the bash terminal
+```bash
+# Build the custom Airflow image defined in deploy/docker/airflow.Dockerfile
+docker compose build
+
+# Start services (Postgres, Redis, API server, Scheduler, etc.)
+docker compose up -d
+
+# Check services & follow logs
+docker compose ps
+```
+
+### Access and Trigger
+1. Open the Airflow UI
+- Go to: http://localhost:8080
+- Login: airflow / airflow (created by the airflow-init service)
+
+2. Enable the DAG
+- In the UI, find `ml_pipeline_taskflow_periods`
+- Toggle the DAG ON (top-right of the DAG page)
+
+3. Trigger a run (UI)
+- Click the Play ▶️ button → Trigger DAG
+- Watch progress in Graph View; click each task for Logs
+
+## 5. Docker Integration
+
+### A.Standalone ML image — for quick, end-to-end runs and CI smoke tests
+Dockerfile: `deploy/docker/Dockerfile`
+
+Purpose: Provide a self-contained runner for the entire pipeline so you (or CI) can execute python src/run_pipeline.py without installing Python or any libs on the host.
+
+When to use this image:
+- Quickly validate the pipeline on a teammate’s machine or CI.
+- Iterate on feature engineering or model training with a simple, linear run.
+- You don’t need orchestration (retries/scheduling) yet.
+
+How it works
+- Base: `python:3.12-slim` (small, fast to pull).
+- Installs dependencies with uv using uv.lock → reproducible and deterministic.
+- Default command runs: python src/run_pipeline.py.
+
+Why it’s structured this way
+- Layer caching: copy pyproject.toml and uv.lock before src/ so dependency layers are reused unless deps change.
+- Single stage: keeps image small and simple → faster builds/pulls in CI/CD.
+- Stateless: inputs/outputs live in bind-mounted volumes, not the image.
+
+Data persistence (volumes at run time)
+- `./data → /app/data`
+- `./models → /app/models`
+- `./reports → /app/reports`
+
+### B.Custom Airflow image — for orchestration, retries, and scheduled runs
+Dockerfile: `deploy/docker/airflow.Dockerfile`
+
+Purpose: Extend `apache/airflow:3.0.3` and bake in your project code + dependencies so tasks can import src.* reliably inside Airflow containers.
+
+When to use this image
+- Need task-level observability (per-task logs, retries).
+- Need scheduling (manual or cron-like).
+- Want to parallelize pieces (e.g., train per period) and capture metrics/artifacts per task.
+
+How it works
+- Sets PYTHONPATH=/opt/airflow → src/ is importable in all tasks.
+- Installs uv and apache-airflow-providers-docker.
+- Runs uv pip install --system . to register your project in the container’s Python env.
+
+Why is it necessary:
+- Airflow runs tasks in separate processes/containers. If your project isn’t installed in the image (or mounted correctly), import src.* fails.
+- Baking code+deps into the image ensures consistent environments across scheduler, workers, and CLI.
+
+## 6. Airflow DAG
+File: `deploy/airflow/dags/ml_pipeline_taskflow_periods.py`
+
+Style: TaskFlow API with a @task_group that expands over time periods (pre/during/post pandemic).
+
+### A. Configuration
+- schedule: `None` (manual) — easy to switch to cron later
+- catchup: `False` — avoids backfilling old dates automatically
+- retries: `1` with `retry_delay=5m` — basic resilience to transient failures
+- tags: `ml`, `no2`, `xgboost`
+
+There are in-container paths present in the DAG that must much the the compose volume Thus, if you change the mounts in `docker-compose.yml`, update these paths in the DAG so task read/write to the correct locations.
+
+### B. Tasks (inputs → outputs)
+1. `data_preprocessing`: Load, clean, and combine city-level and province-level NO₂ data, and merge them with external urban amenity features.
+2. `feature_engineering`: Add machine learning-friendly features like lagged NO₂, seasonal indicators, and HUC flags.
+3. `split_periods`: Separate the data into 3 time-based regimes to model behavior differences across events like the COVID-19 pandemic.
+4. `model_training_group`: Train and evaluate a baseline and an XGBoost model for each period.
+5. `evaluate`: Collect and summarize all results at the end of the DAG run.
+
+### Dependency Chain
+```nginx
+data_preprocessing
+  → feature_engineering
+  → split_periods
+  → model_training_group
+  → evaluate
+```
 
 ---
-## Pre-commit Configuration
-```yaml
-repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.3.5
-    hooks:
-      - id: ruff
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
-    hooks:
-      - id: end-of-file-fixer
-      - id: trailing-whitespace
-```
-Installed via:
+## 7. Pre-commit Configuration
+
+To configure pre-commit for this repo:
+
 ```bash
+# Install pre-commit (uses uv)
 uv pip install pre-commit
+
+# (macOS) Install system linters
+brew install hadolint yamllint
+
+# Enable git hooks
 pre-commit install
+
+# Optional: run on all files once
+pre-commit run --all-files
 ```
-All code passes linting and formatting checks.
+The hook list is defined in .pre-commit-config.yaml at the repo root.
+
 
 Hook Justifications:
 - ruff: Ensures consistent code formatting and linting across the project, catching style issues and potential bugs early, which reduces merge conflicts and improves readability.
@@ -115,9 +258,30 @@ Hook Justifications:
 
 - trailing-whitespace: Removes unnecessary trailing spaces, cleaning up diffs and maintaining a professional codebase.
 
+- check-added-large-files:  Prevents accidentally committing huge artifacts.
+
+- check-merge-conflict: Blocks unresolved conflict markers from being committed.
+
+- hadolint:  Lints Dockerfiles for best practices (version pinning, no anti-patterns).
+
+- yamllint: Validates and enforces style for YAML config files.
+
 ---
-## Reflection
-This is my first time creating a GitHub repository with a fully functioning ML Ops pipeline, so setting up the UV environment and modularizing the code (data preprocessing, feature engineering, model training, evaluation) was a significant challenge. I learned the importance of validating each module independently to ensure data preprocessing works, then feature engineering, and finally model training before running the full pipeline. Additionally, I encountered compatibility issues when running the pipeline in a OneDrive-synced directory and resolved them by moving the project to a local, unsynced Documents folder.
+## 8. Reflection
+The biggest hurdle was getting host ↔ container paths and image builds aligned. Early runs failed because Airflow tasks couldn’t see the expected files. The fixes:
+
+- Standardize volume mounts in `docker-compose.yml` (e.g., `./data → /opt/airflow/data`) and use those exact in-container paths inside the DAG (`/opt/airflow/data/...`).
+- Respect the compose anchors/config (e.g., the shared `x-airflow-common` block) so all Airflow services inherit the same env, volumes, and image.
+  - Dockerfiles in `deploy/docker/` (e.g., `deploy/docker/airflow.Dockerfile`)
+  - DAGs in `deploy/airflow/dags/`
+- Create a root `.env` to keep paths/permissions consistent:
+  ```dotenv
+  AIRFLOW_PROJ_DIR=./deploy/airflow
+  AIRFLOW_UID=501
+  AIRFLOW_IMAGE_NAME=custom-airflow:latest
+- Build a custom Airflow image with project dependencies (uv, providers, and uv pip install --system .). Without this, tasks failed on import src.* due to missing libs.
+
+It took a few iterations, but with correct mounts, a reproducible .env, and a dependency-aware airflow.Dockerfile, the DAG now runs reliably on my local host.
 
 ---
 *This README satisfies course requirements for a production-driven ML project.*
