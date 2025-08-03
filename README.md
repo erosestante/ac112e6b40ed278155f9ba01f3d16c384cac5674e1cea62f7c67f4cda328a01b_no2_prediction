@@ -202,7 +202,7 @@ Why is it necessary:
 - Baking code+deps into the image ensures consistent environments across scheduler, workers, and CLI.
 
 ## 6. Airflow DAG
-File: `deploy/airflow/dags/ml_pipeline_taskflow_periods.py`
+File: `deploy/airflow/dags/ml_pipeline_dag.py`
 
 Style: TaskFlow API with a @task_group that expands over time periods (pre/during/post pandemic).
 
