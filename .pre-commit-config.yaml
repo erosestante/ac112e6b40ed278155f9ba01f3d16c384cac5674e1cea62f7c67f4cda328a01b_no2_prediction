@@ -28,4 +28,4 @@ repos:
     rev: v1.32.0
     hooks:
       - id: yamllint
-        files: \.(yaml|yml)$
+        args: ["-c", ".yamllint.yml"]

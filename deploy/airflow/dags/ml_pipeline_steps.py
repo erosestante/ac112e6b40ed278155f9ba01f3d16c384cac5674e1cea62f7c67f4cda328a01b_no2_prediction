@@ -12,12 +12,12 @@ from src.model_training import train_naive_baseline, train_xgb_with_optuna
 from src.evaluation import save_metrics
 from src.run_pipeline import time_based_split
 
-RAW_CITY  = Path("/app/data/raw/PHL_HUCs_Monthly_NO2_2018_2025.csv")
-RAW_PROV  = Path("/app/data/raw/PHL_Provinces_Monthly_NO2_2018_2025.csv")
-PARQ_DIR  = Path("/app/data/raw/Archive")
-PROCESSED = Path("/app/data/processed")
-REPORTS   = Path("/app/reports")
-MODELS    = Path("/app/models")
+RAW_CITY  = Path("/opt/airflow/data/raw/PHL_HUCs_Monthly_NO2_2018_2025.csv")
+RAW_PROV  = Path("/opt/airflow/data/raw/PHL_Provinces_Monthly_NO2_2018_2025.csv")
+PARQ_DIR  = Path("/opt/airflow/data/raw/Archive")
+PROCESSED = Path("/opt/airflow/data/processed")
+REPORTS   = Path("/opt/airflow/data/reports")
+MODELS    = Path("/opt/airflow/data/models")
 
 default_args = {
     "owner": "airflow",
@@ -27,10 +27,10 @@ default_args = {
 }
 
 with DAG(
-    "ml_pipeline_taskflow_periods",
+    dag_id="ml_pipeline_taskflow_periods",
     default_args=default_args,
     description="ML pipeline for NO2 prediction with taskflow API",
-    schedule_interval=None,
+    schedule=None,  # Correct for Airflow 3.x
     catchup=False,
     tags=["ml", "no2", "xgboost"],
 ) as dag:
