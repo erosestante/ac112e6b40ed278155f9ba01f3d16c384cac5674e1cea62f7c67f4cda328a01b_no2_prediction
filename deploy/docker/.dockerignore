@@ -1,0 +1,63 @@
+# ─────────────────────────────
+# Python artifacts
+# ─────────────────────────────
+__pycache__/
+*.py[cod]
+*.ipynb
+.ipynb_checkpoints/
+
+# ─────────────────────────────
+# Virtual environments
+# ─────────────────────────────
+.venv/
+env/
+venv/
+
+# ─────────────────────────────
+# Data & model artifacts
+# ─────────────────────────────
+data/raw/
+data/processed/
+data/interim/
+*.csv
+*.parquet
+*.joblib
+*.pkl
+*.h5
+
+# ─────────────────────────────
+# Reports, logs, and figures
+# ─────────────────────────────
+reports/
+*.png
+*.svg
+*.pdf
+*.log
+*.out
+*.txt
+
+# ─────────────────────────────
+# Docker & Airflow internals
+# ─────────────────────────────
+deploy/airflow/logs/
+deploy/      # skip full deploy context unless specifically needed
+
+# ─────────────────────────────
+# Experiment tracking
+# ─────────────────────────────
+miruns/
+wandb/
+
+# ─────────────────────────────
+# Build cache / dist folders
+# ─────────────────────────────
+*.egg-info/
+dist/
+build/
+
+# ─────────────────────────────
+# OS / editor junk
+# ─────────────────────────────
+.DS_Store
+.vscode/
+.idea/
