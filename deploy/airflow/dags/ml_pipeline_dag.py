@@ -27,7 +27,7 @@ default_args = {
 }
 
 with DAG(
-    dag_id="ml_pipeline_taskflow_periods",
+    dag_id="ml_pipeline_dag",
     default_args=default_args,
     description="ML pipeline for NO2 prediction with taskflow API",
     schedule=None,  # Correct for Airflow 3.x

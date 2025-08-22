@@ -33,6 +33,10 @@ build/
 data/raw/
 data/processed/
 data/interim/
+data/external/
+artifacts/
+models/
+outputs/
 *.csv
 *.parquet
 *.joblib
@@ -53,12 +57,12 @@ reports/
 # ─────────────────────────────
 # Docker & Airflow
 # ─────────────────────────────
-/deploy/airflow/logs/
+deploy/airflow/logs/
 
 # ─────────────────────────────
 # Experiment tracking
 # ─────────────────────────────
-miruns/
+mlruns/
 wandb/
 
 # ─────────────────────────────
@@ -68,10 +72,6 @@ wandb/
 # poetry.lock
 # Pipfile.lock
 
-# Ignore generated data and logs
-data/processed/*.parquet
-deploy/airflow/logs/**/*.log
-
 # ─────────────────────────────
 # Allow explicit project files
 # ─────────────────────────────
@@ -79,3 +79,6 @@ deploy/airflow/logs/**/*.log
 !requirements.txt
 !Pipfile
 !environment.yml
+
+# Secrets / env
+.env
