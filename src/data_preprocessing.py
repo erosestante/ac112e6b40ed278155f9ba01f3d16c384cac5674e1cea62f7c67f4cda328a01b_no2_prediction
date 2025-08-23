@@ -1,9 +1,12 @@
+##data_preprocessing.py
+
 import os
 import re
 import glob
 import pandas as pd
 from pathlib import Path
 from typing import List, Optional
+import numpy as np
 
 def load_csv(path: Path, region_col: str, date_col: str = "date") -> pd.DataFrame:
     """
@@ -97,3 +100,69 @@ def load_and_prepare_all(
     df = merge_features(df, ext)
     # drop intermediate columns
     return df.drop(columns=["NO2", "quarter_date"], errors="ignore")
+
+
+def preprocess_data(
+    df: pd.DataFrame,
+    target_col: str = "NO2_umol_m2",
+    date_col: str = "date",
+    save_dir: Path = Path("data"),
+    frac_train: float = 0.8,
+    random_state: int = 42,
+):
+    """
+    Numeric-only drift:
+      - time-based split (train/test on unique dates)
+      - add Gaussian noise to numeric TEST features only, sigma = 0.1 * std(train)
+      - save drifted CSVs, return:
+        (X_train, X_test, y_train, y_test, X_train_drifted, y_train_drifted, X_test_drifted, y_test_drifted)
+    """
+    rng = np.random.default_rng(random_state)
+    df = df.copy()
+    df[date_col] = pd.to_datetime(df[date_col])
+
+    # time-based split on unique dates
+    dates = df[date_col].sort_values().unique()
+    split = int(len(dates) * frac_train)
+    train = df[df[date_col].isin(dates[:split])].reset_index(drop=True)
+    test  = df[df[date_col].isin(dates[split:])].reset_index(drop=True)
+
+    # features/targets
+    X_train = train.drop(columns=[target_col])
+    y_train = train[target_col]
+    X_test  = test.drop(columns=[target_col])
+    y_test  = test[target_col]
+
+    # exclude obvious non-feature columns
+    non_features = {target_col, date_col, "region"}
+    num_cols = [c for c in X_train.columns
+                if c not in non_features and np.issubdtype(X_train[c].dtype, np.number)]
+
+    # make drifted copies
+    X_train_drifted = X_train.copy()
+    y_train_drifted = y_train.copy()
+    X_test_drifted  = X_test.copy()
+    y_test_drifted  = y_test.copy()
+
+    if num_cols:
+        # std from TRAINING only
+        stds = X_train[num_cols].astype(float).std(ddof=0)
+        # avoid zero std: replace zeros with smallest nonzero or 1.0 fallback
+        if (stds > 0).any():
+            stds = stds.replace(0, stds[stds > 0].min())
+        else:
+            stds = stds.replace(0, 1.0)
+
+        sigma = 0.1 * stds.values
+        noise = rng.normal(loc=0.0, scale=sigma, size=(len(X_test_drifted), len(num_cols)))
+        X_test_drifted.loc[:, num_cols] = X_test_drifted.loc[:, num_cols].astype(float).values + noise
+
+    # save drifted splits
+    save_dir.mkdir(parents=True, exist_ok=True)
+    (X_train_drifted.assign(**{target_col: y_train_drifted})).to_csv(save_dir / "drifted_train.csv", index=False)
+    (X_test_drifted.assign(**{target_col: y_test_drifted})).to_csv(save_dir / "drifted_test.csv", index=False)
+
+    return (
+        X_train, X_test, y_train, y_test,
+        X_train_drifted, y_train_drifted, X_test_drifted, y_test_drifted
+    )
