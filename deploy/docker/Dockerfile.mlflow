@@ -1,0 +1,30 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install build deps for psycopg2 and other libs
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install MLflow + deps
+RUN pip install --no-cache-dir \
+    mlflow==3.1.4 \
+    psycopg2-binary==2.9.10 \
+    boto3==1.40.0
+
+# Create artifact dirs with open perms
+RUN mkdir -p /mlflow/artifacts /mlflow/runs && chmod -R 777 /mlflow
+
+EXPOSE 5000
+
+# Match docker-compose service name (mlflow-postgres)
+ENV MLFLOW_BACKEND_STORE_URI=postgresql://mlflow:mlflow@mlflow-postgres:5432/mlflow
+ENV MLFLOW_DEFAULT_ARTIFACT_ROOT=/mlflow/artifacts
+ENV MLFLOW_HOST=0.0.0.0
+ENV MLFLOW_PORT=5000
+
+CMD ["sh", "-c", "mlflow server \
+    --backend-store-uri $MLFLOW_BACKEND_STORE_URI \
+    --default-artifact-root $MLFLOW_DEFAULT_ARTIFACT_ROOT \
+    --host $MLFLOW_HOST --port $MLFLOW_PORT"]

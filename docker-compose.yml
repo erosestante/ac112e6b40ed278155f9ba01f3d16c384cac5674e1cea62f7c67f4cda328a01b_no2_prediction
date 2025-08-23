@@ -81,8 +81,10 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
     - ./data:/opt/airflow/data       # ✅ local data appears in container
-    - ./reports:/reports
-    - ./models:/models
+    - ./reports:/opt/airflow/reports
+    - ./models:/opt/airflow/models
+    - mlflow-artifacts:/mlflow   # ✅ shared named volume
+
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
@@ -315,27 +317,43 @@ services:
     depends_on:
       <<: *airflow-common-depends-on
 
-  # You can enable flower by adding "--profile flower" option e.g. docker-compose --profile flower up
-  # or by explicitly targeted on the command line e.g. docker-compose up flower.
-  # See: https://docs.docker.com/compose/profiles/
-#  flower:
-#    <<: *airflow-common
-#    command: celery flower
-#    profiles:
-#      - flower
-#    ports:
-#      - "5555:5555"
-#    healthcheck:
-#      test: ["CMD", "curl", "--fail", "http://localhost:5555/"]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 5
-#      start_period: 30s
-#    restart: always
-#    depends_on:
-#      <<: *airflow-common-depends-on
-#      airflow-init:
-#        condition: service_completed_successfully
+    # Extra DB for MLflow
+  mlflow-postgres:
+    image: postgres:15.8-alpine
+    environment:
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow
+      POSTGRES_DB: mlflow
+    ports:
+      - "5433:5432"
+    volumes:
+      - mlflow-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "mlflow"]
+      interval: 10s
+      retries: 3
+      start_period: 5s
+    restart: always
+
+  # MLflow service
+  mlflow:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.mlflow
+    ports:
+      - "5001:5000"   # host:container (use 5001 on host to avoid MacOS Control Center)
+    environment:
+      MLFLOW_BACKEND_STORE_URI: postgresql://mlflow:mlflow@mlflow-postgres:5432/mlflow
+      MLFLOW_DEFAULT_ARTIFACT_ROOT: /mlflow/artifacts
+    volumes:
+      - mlflow-artifacts:/mlflow
+      #- ./mlflow:/mlflow
+    depends_on:
+      mlflow-postgres:
+        condition: service_healthy
+    restart: always
 
 volumes:
   postgres-db-volume:
+  mlflow-db-volume:
+  mlflow-artifacts:
