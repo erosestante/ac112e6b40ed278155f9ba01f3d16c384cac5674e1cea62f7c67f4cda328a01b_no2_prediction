@@ -1,7 +1,16 @@
 # run_pipeline.py
+# flake8: noqa: E402
+# ruff: noqa: E402
 from __future__ import annotations
-from pathlib import Path
+
+import sys
 import os
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from pathlib import Path
+
 import logging
 import numpy as np
 import pandas as pd
