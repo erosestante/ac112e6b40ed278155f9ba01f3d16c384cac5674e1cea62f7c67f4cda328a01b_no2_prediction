@@ -83,6 +83,7 @@ x-airflow-common:
     - ./data:/opt/airflow/data       # ✅ local data appears in container
     - ./reports:/opt/airflow/reports
     - ./models:/opt/airflow/models
+    - ./src:/opt/airflow/src
     - mlflow-artifacts:/mlflow   # ✅ shared named volume
 
   user: "${AIRFLOW_UID:-50000}:0"

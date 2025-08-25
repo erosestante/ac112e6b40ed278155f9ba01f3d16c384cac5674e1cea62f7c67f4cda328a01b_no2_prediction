@@ -1,0 +1,6 @@
+artifact_location: file:///Users/erosestante/Documents/mlops-no2/ac112e6b40ed278155f9ba01f3d16c384cac5674e1cea62f7c67f4cda328a01b_no2_prediction-1/mlflow/runs/732136922098939689
+creation_time: 1756099491849
+experiment_id: '732136922098939689'
+last_update_time: 1756099491849
+lifecycle_stage: active
+name: no2-experiment

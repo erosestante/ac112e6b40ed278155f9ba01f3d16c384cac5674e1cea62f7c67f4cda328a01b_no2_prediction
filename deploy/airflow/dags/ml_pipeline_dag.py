@@ -6,10 +6,15 @@ from pathlib import Path
 import json
 import pandas as pd
 import mlflow
+import logging
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.operators.empty import EmptyOperator
+
+import sys
+if "/opt/airflow" not in sys.path:
+    sys.path.append("/opt/airflow")
 
 # --- Project imports ---
 from src.data_preprocessing import load_and_prepare_all
@@ -49,14 +54,66 @@ with DAG(
 
     # ---------- Core tasks ----------
     def _preprocess():
+        import numpy as np
+        import pandas as pd
+
         RAW_CITY  = Path("/opt/airflow/data/raw/PHL_HUCs_Monthly_NO2_2018_2025.csv")
         RAW_PROV  = Path("/opt/airflow/data/raw/PHL_Provinces_Monthly_NO2_2018_2025.csv")
         PARQ_DIR  = Path("/opt/airflow/data/raw/Archive")
         PROCESSED = Path("/opt/airflow/data/processed")
+        DATA_DIR  = Path("/opt/airflow/data")
 
-        df = load_and_prepare_all(RAW_CITY, RAW_PROV, PARQ_DIR)
         PROCESSED.mkdir(parents=True, exist_ok=True)
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+        # 1) your original preprocessing
+        df = load_and_prepare_all(RAW_CITY, RAW_PROV, PARQ_DIR)
         df.to_parquet(PROCESSED / "preprocessed.parquet")
+
+        # 2) create clean + drifted CSVs used by drift_detection
+        target_col = "NO2_umol_m2"
+        date_col   = "date"
+
+        df = df.copy()
+        df[date_col] = pd.to_datetime(df[date_col])
+
+        dates = np.sort(df[date_col].unique())
+        split = int(0.8 * len(dates))
+        train = df[df[date_col].isin(dates[:split])].reset_index(drop=True)
+        test  = df[df[date_col].isin(dates[split:])].reset_index(drop=True)
+
+        X_train = train.drop(columns=[target_col])
+        y_train = train[target_col]
+        X_test  = test.drop(columns=[target_col])
+        y_test  = test[target_col]
+
+        # numeric-only drift (strong & obvious)
+        non_features = {target_col, date_col, "region"}
+        num_cols = [c for c in X_train.columns
+                    if c not in non_features and np.issubdtype(X_train[c].dtype, np.number)]
+
+        X_test_drifted = X_test.copy()
+        if num_cols:
+            stds = X_train[num_cols].astype(float).std(ddof=0)
+            min_pos = stds[stds > 0].min()
+            stds = stds.replace(0, min_pos if pd.notna(min_pos) else 1.0).fillna(1.0)
+
+            rng   = np.random.default_rng(42)
+            shift = 0.5 * stds.values                         # +0.5*std mean shift
+            noise = rng.normal(0.0, 0.3 * stds.values,        # 0.3*std noise
+                            size=(len(X_test_drifted), len(num_cols)))
+            X_test_drifted.loc[:, num_cols] = (
+                X_test_drifted.loc[:, num_cols].astype(float).values + shift + noise
+            )
+
+            # amplify on the top-variance 5 features
+            topk = X_train[num_cols].var().sort_values(ascending=False).index[:5]
+            X_test_drifted.loc[:, topk] = X_test_drifted.loc[:, topk].astype(float) * 1.5
+
+        # save what the drift task expects
+        (X_train.assign(**{target_col: y_train})).to_csv(DATA_DIR / "train.csv", index=False)
+        (X_test.assign(**{target_col: y_test})).to_csv(DATA_DIR / "test.csv", index=False)
+        (X_test_drifted.assign(**{target_col: y_test})).to_csv(DATA_DIR / "drifted_test.csv", index=False)
 
     preprocess_data = PythonOperator(
         task_id="preprocess_data",
@@ -121,31 +178,46 @@ with DAG(
     )
 
     def _drift_detection():
-        PROCESSED = Path("/opt/airflow/data/processed")
         DATA_DIR  = Path("/opt/airflow/data")
         REPORTS   = Path("/opt/airflow/data/reports")
 
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         REPORTS.mkdir(parents=True, exist_ok=True)
 
-        test_ref = DATA_DIR / "test.csv"
-        test_cur = DATA_DIR / "drifted_test.csv"
-        drift_json = REPORTS / "drift_report.json"
+        # Use the files written by preprocess_data()
+        test_ref = DATA_DIR / "test.csv"           # undrifted
+        test_cur = DATA_DIR / "drifted_test.csv"   # drifted
 
-        # Create dummy test sets if missing
+        # Fail fast if they don't exist (forces correct order and avoids weak dummy data)
         if not test_ref.exists() or not test_cur.exists():
-            df = pd.read_parquet(PROCESSED / "features.parquet")
-            df = df.dropna(subset=["NO2_prev_month"]).reset_index(drop=True)
-            df["date"] = pd.to_datetime(df["date"])
-            _, val_df = time_based_split(df, "date", 0.8)
+            raise FileNotFoundError(
+                f"Missing input files for drift detection. "
+                f"Expected: {test_ref} and {test_cur}. "
+                f"Make sure the preprocess task ran and saved them."
+            )
 
-            val_df.to_csv(test_ref, index=False)
-            drifted = val_df.copy()
-            for c in drifted.select_dtypes("number").columns[:3]:
-                drifted[c] = drifted[c] * 1.1
-            drifted.to_csv(test_cur, index=False)
+        result = detect_drift(str(test_ref), str(test_cur))
+        drift = bool(result.get("drift_detected"))
+        overall = result.get("overall_drift_score")
 
-        detect_drift(str(test_ref), str(test_cur), output_path=str(drift_json))
+        if drift:
+            logging.info("⚠️ Data drift detected in test set! Model retraining required.")
+        else:
+            logging.info("✅ No drift detected in test set.")
+
+        logging.info("Drift summary: drift_detected=%s, overall_drift_score=%s", drift, overall)
+
+        # If detect_drift returned HTML locations, surface them too
+        html_paths = result.get("html_paths") or []
+        if html_paths:
+            logging.info("Drift HTML report saved at: %s", html_paths)
+
+        # Mirror into /opt/airflow/data/reports for the branch step
+        src_json = Path("/opt/airflow/data/reports/drift_report.json")
+        dst_json = REPORTS / "drift_report.json"
+        if not src_json.exists():
+            raise FileNotFoundError(f"Expected drift report at {src_json}, but it was not created.")
+        dst_json.write_text(src_json.read_text())
 
     drift_detection = PythonOperator(
         task_id="drift_detection",

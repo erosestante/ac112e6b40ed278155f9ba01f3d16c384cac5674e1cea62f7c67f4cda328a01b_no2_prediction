@@ -82,3 +82,6 @@ wandb/
 
 # Secrets / env
 .env
+
+mlflow/
+mlruns/

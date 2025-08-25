@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/erosestante/Documents/mlops-no2/ac112e6b40ed278155f9ba01f3d16c384cac5674e1cea62f7c67f4cda328a01b_no2_prediction-1/mlflow/runs/611960611568562299/b8761bf43e5f460d8160d7f49715b96d/artifacts
+end_time: 1756101794634
+entry_point_name: ''
+experiment_id: '611960611568562299'
+lifecycle_stage: active
+run_id: b8761bf43e5f460d8160d7f49715b96d
+run_name: upbeat-gnu-722
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1756101794621
+status: 3
+tags: []
+user_id: erosestante

@@ -110,55 +110,57 @@ def preprocess_data(
     frac_train: float = 0.8,
     random_state: int = 42,
 ):
-    """
-    Numeric-only drift:
-      - time-based split (train/test on unique dates)
-      - add Gaussian noise to numeric TEST features only, sigma = 0.1 * std(train)
-      - save drifted CSVs, return:
-        (X_train, X_test, y_train, y_test, X_train_drifted, y_train_drifted, X_test_drifted, y_test_drifted)
-    """
     rng = np.random.default_rng(random_state)
     df = df.copy()
     df[date_col] = pd.to_datetime(df[date_col])
 
-    # time-based split on unique dates
+    # ---- time-based split ----
     dates = df[date_col].sort_values().unique()
     split = int(len(dates) * frac_train)
     train = df[df[date_col].isin(dates[:split])].reset_index(drop=True)
     test  = df[df[date_col].isin(dates[split:])].reset_index(drop=True)
 
-    # features/targets
+    # ---- features/targets ----
     X_train = train.drop(columns=[target_col])
     y_train = train[target_col]
     X_test  = test.drop(columns=[target_col])
     y_test  = test[target_col]
 
-    # exclude obvious non-feature columns
+    # numeric feature cols (exclude obvious non-features)
     non_features = {target_col, date_col, "region"}
     num_cols = [c for c in X_train.columns
                 if c not in non_features and np.issubdtype(X_train[c].dtype, np.number)]
 
-    # make drifted copies
+    # copies for drifted versions
     X_train_drifted = X_train.copy()
     y_train_drifted = y_train.copy()
     X_test_drifted  = X_test.copy()
     y_test_drifted  = y_test.copy()
 
+    # ---- numeric drift only ----
     if num_cols:
-        # std from TRAINING only
         stds = X_train[num_cols].astype(float).std(ddof=0)
-        # avoid zero std: replace zeros with smallest nonzero or 1.0 fallback
-        if (stds > 0).any():
-            stds = stds.replace(0, stds[stds > 0].min())
-        else:
-            stds = stds.replace(0, 1.0)
+        # handle zero/NaN std gracefully
+        min_pos = stds[stds > 0].min()
+        stds = stds.replace(0, min_pos if pd.notna(min_pos) else 1.0).fillna(1.0)
 
-        sigma = 0.1 * stds.values
-        noise = rng.normal(loc=0.0, scale=sigma, size=(len(X_test_drifted), len(num_cols)))
-        X_test_drifted.loc[:, num_cols] = X_test_drifted.loc[:, num_cols].astype(float).values + noise
+        # mean shift + noise (make it obvious)
+        shift = 0.5 * stds.values                # +0.5*std shift
+        noise = rng.normal(0.0, 0.3 * stds.values,
+                           size=(len(X_test_drifted), len(num_cols)))  # 0.3*std noise
 
-    # save drifted splits
+        X_test_drifted.loc[:, num_cols] = (
+            X_test_drifted.loc[:, num_cols].astype(float).values + shift + noise
+        )
+
+        # amplify drift on the top-variance 5 numeric features
+        topk = X_train[num_cols].var().sort_values(ascending=False).index[:5]
+        X_test_drifted.loc[:, topk] = X_test_drifted.loc[:, topk].astype(float) * 1.5
+
+    # ---- save outputs ----
     save_dir.mkdir(parents=True, exist_ok=True)
+    (X_train.assign(**{target_col: y_train})).to_csv(save_dir / "train.csv", index=False)
+    (X_test.assign(**{target_col: y_test})).to_csv(save_dir / "test.csv", index=False)
     (X_train_drifted.assign(**{target_col: y_train_drifted})).to_csv(save_dir / "drifted_train.csv", index=False)
     (X_test_drifted.assign(**{target_col: y_test_drifted})).to_csv(save_dir / "drifted_test.csv", index=False)
 

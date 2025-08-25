@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/erosestante/Documents/mlops-no2/ac112e6b40ed278155f9ba01f3d16c384cac5674e1cea62f7c67f4cda328a01b_no2_prediction-1/mlflow/runs/611960611568562299/c5ffc4b823af47cdbde508c4c8ec729f/artifacts
+end_time: 1756099554527
+entry_point_name: ''
+experiment_id: '611960611568562299'
+lifecycle_stage: active
+run_id: c5ffc4b823af47cdbde508c4c8ec729f
+run_name: loud-horse-410
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1756099554516
+status: 3
+tags: []
+user_id: erosestante
