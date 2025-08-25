@@ -5,7 +5,11 @@ Building on our Homework 1 ML pipeline for forecasting monthly NO₂ concentrati
 
 - `Docker containerization` for reproducible, immutable environments. We start from a Python 3.12-slim base, install locked dependencies via UV, and bundle our ML code so anyone can clone and run without “it works on my machine” issues.
 
-- `Apache Airflow orchestration` (official `apache/airflow:3.0.3` image) to automate and monitor each pipeline step—preprocessing, feature engineering, time-based splits, per-period model training, and evaluation—with retry policies, clear task dependencies, and a web UI for visibility.
+- `Apache Airflow orchestration` (official `apache/airflow:3.0.3` image) to automate preprocessing, feature engineering, training (baseline + XGBoost/Optuna), evaluation, and drift monitoring.
+
+- `MLflow tracking + registry` for experiments, metrics, artifacts, and model versions.
+
+- `Drift Simulation and Detection (Evidently)` with branching retrain logic
 
 ## 2. Setup Instructions
 
@@ -25,7 +29,7 @@ Building on our Homework 1 ML pipeline for forecasting monthly NO₂ concentrati
     ```bash
     git clone git@github.com:erosestante/ac112e6b40ed278155f9ba01f3d16c384cac5674e1cea62f7c67f4cda328a01b_no2_prediction.
     cd ac112e6b40ed278155f9ba01f3d16c384cac5674e1cea62f7c67f4cda328a01b_no2_prediction
-    git checkout hw2-docker-airflow
+    git checkout hw3-mlflow-drift
 
 ### Folder Structure
 ```text
@@ -230,58 +234,8 @@ data_preprocessing
   → evaluate
 ```
 
----
-## 7. Pre-commit Configuration
-
-To configure pre-commit for this repo:
-
-```bash
-# Install pre-commit (uses uv)
-uv pip install pre-commit
-
-# (macOS) Install system linters
-brew install hadolint yamllint
-
-# Enable git hooks
-pre-commit install
-
-# Optional: run on all files once
-pre-commit run --all-files
-```
-The hook list is defined in .pre-commit-config.yaml at the repo root.
-
-
-Hook Justifications:
-- ruff: Ensures consistent code formatting and linting across the project, catching style issues and potential bugs early, which reduces merge conflicts and improves readability.
-
-- end-of-file-fixer: Automatically adds a newline at the end of files, preventing diff noise and adhering to POSIX standards.
-
-- trailing-whitespace: Removes unnecessary trailing spaces, cleaning up diffs and maintaining a professional codebase.
-
-- check-added-large-files:  Prevents accidentally committing huge artifacts.
-
-- check-merge-conflict: Blocks unresolved conflict markers from being committed.
-
-- hadolint:  Lints Dockerfiles for best practices (version pinning, no anti-patterns).
-
-- yamllint: Validates and enforces style for YAML config files.
-
----
 ## 8. Reflection
-The biggest hurdle was getting host ↔ container paths and image builds aligned. Early runs failed because Airflow tasks couldn’t see the expected files. The fixes:
-
-- Standardize volume mounts in `docker-compose.yml` (e.g., `./data → /opt/airflow/data`) and use those exact in-container paths inside the DAG (`/opt/airflow/data/...`).
-- Respect the compose anchors/config (e.g., the shared `x-airflow-common` block) so all Airflow services inherit the same env, volumes, and image.
-  - Dockerfiles in `deploy/docker/` (e.g., `deploy/docker/airflow.Dockerfile`)
-  - DAGs in `deploy/airflow/dags/`
-- Create a root `.env` to keep paths/permissions consistent:
-  ```dotenv
-  AIRFLOW_PROJ_DIR=./deploy/airflow
-  AIRFLOW_UID=501
-  AIRFLOW_IMAGE_NAME=custom-airflow:latest
-- Build a custom Airflow image with project dependencies (uv, providers, and uv pip install --system .). Without this, tasks failed on import src.* due to missing libs.
-
-It took a few iterations, but with correct mounts, a reproducible .env, and a dependency-aware airflow.Dockerfile, the DAG now runs reliably on my local host.
+During development, one major challenge was mounting the src/ folder into Airflow containers. Initially, I repeatedly rebuilt images, but the actual fix was simply restarting services with the correct mounted paths. Another difficulty was configuring Evidently for drift detection inside the container environment, which required careful handling of dependencies and ensuring drifted test sets were generated properly. These obstacles highlighted the importance of debugging with container restarts before rebuilding images and of incrementally validating each DAG task. Once resolved, the pipeline achieved full reproducibility with minimal friction between Docker, Airflow, and MLflow.
 
 ---
 *This README satisfies course requirements for a production-driven ML project.*

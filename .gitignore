@@ -81,7 +81,7 @@ wandb/
 !environment.yml
 
 # Secrets / env
-.env
+#.env
 
 mlflow/
 mlruns/
