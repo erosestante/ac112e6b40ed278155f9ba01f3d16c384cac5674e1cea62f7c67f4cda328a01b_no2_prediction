@@ -132,7 +132,7 @@ def train_xgb_with_optuna(
     mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000"))
     mlflow.set_experiment("NO2-forecast")
 
-    with mlflow.start_run(run_name="xgb_regression") as run:
+    with mlflow.start_run(run_name="xgb_regression", nested=True) as run:
         run_id = run.info.run_id
 
         # Params (only key ones)
